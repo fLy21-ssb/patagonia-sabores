@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "Patagonia Sabores",
+  "short_name": "Patagonia",
+  "description": "Pide online: retiro, delivery o directo desde tu mesa. Te avisamos cuando tu pedido esté listo.",
+  "lang": "es-CL",
+  "dir": "ltr",
+  "start_url": "/?origen=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff7f0",
+  "theme_color": "#a8377f",
+  "categories": ["food", "shopping", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mis pedidos", "short_name": "Pedidos", "url": "/#/mis-pedidos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

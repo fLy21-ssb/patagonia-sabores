@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Cuenta Cloudflare del restaurante (benjasotomayor.10). Fijada para no publicar nunca en otra cuenta.
+  "account_id": "ac8455e63c56f0be788f57110f4d503b",
+  "name": "patagonia",
+  "main": "src/worker/index.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "patagonia-sabores",
+      "database_id": "29a115b7-5202-4842-b165-9c7205d0d8b4",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    { "binding": "IMAGENES", "id": "8198a96064484f81b93a43ff738883d3" }
+  ],
+  "vars": { "VAPID_SUBJECT": "https://patagonia.benjaminsotomayor.workers.dev" },
+  "triggers": { "crons": ["17 9 * * *"] },
+  "observability": { "enabled": true }
+}

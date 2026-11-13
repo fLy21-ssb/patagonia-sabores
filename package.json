@@ -1,0 +1,29 @@
+{
+  "name": "patagonia-sabores-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sistema de pedidos web (PWA) de Patagonia Sabores, sobre Cloudflare Workers + D1 + KV",
+  "scripts": {
+    "build": "vite build",
+    "dev": "node scripts/wrangler.mjs dev",
+    "deploy": "vite build && node scripts/wrangler.mjs deploy",
+    "migrar": "node scripts/wrangler.mjs d1 migrations apply patagonia-sabores --remote",
+    "wrangler": "node scripts/wrangler.mjs",
+    "test": "node scripts/test-push.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/josefin-sans": "^5.3.0",
+    "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource/alfa-slab-one": "^5.3.0",
+    "lucide-preact": "^1.72.0",
+    "preact": "^11.2.0",
+    "qrcode-generator": "^2.0.4"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.17.0",
+    "sharp": "^0.35.5",
+    "vite": "^8.3.8",
+    "wrangler": "^4.161.0"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.secrets.produccion.json
+CREDENCIALES.txt
+assets-src/_*.png
+capturas/
+.cuenta-cloudflare/
+docs/
