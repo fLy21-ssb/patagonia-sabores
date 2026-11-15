@@ -236,6 +236,7 @@ function FormularioProducto({ producto, categorias, onCerrar, onGuardado, onElim
     conAcompanamiento: producto.conAcompanamiento || false,
     dias: producto.dias ?? 127,
     destacado: producto.destacado || false,
+    sugerido: producto.sugerido || false,
     activo: producto.activo ?? true,
   });
   const [subiendo, setSubiendo] = useState(false);
@@ -277,6 +278,7 @@ function FormularioProducto({ producto, categorias, onCerrar, onGuardado, onElim
         conAcompanamiento: f.conAcompanamiento,
         dias: f.dias,
         destacado: f.destacado,
+        sugerido: f.sugerido,
         activo: f.activo,
       };
       const r = nuevo
@@ -463,6 +465,13 @@ function FormularioProducto({ producto, categorias, onCerrar, onGuardado, onElim
                 <small class="block muted">Aparece en “Recomendados de hoy”.</small>
               </span>
               <Switch checked={f.destacado} onChange={(v) => set({ destacado: v })} etiqueta="Destacado" />
+            </div>
+            <div class="switch-row">
+              <span>
+                <strong>Sugerir en el carro</strong>
+                <small class="block muted">Se ofrece en “¿Le sumas algo?” antes de pagar. Ideal para bebidas y postres.</small>
+              </span>
+              <Switch checked={f.sugerido} onChange={(v) => set({ sugerido: v })} etiqueta="Sugerir en el carro" />
             </div>
             <div class="switch-row">
               <span>

@@ -15,6 +15,8 @@ export const AJUSTES_DEFAULT = {
   mensajePausa: 'Estamos con muchos pedidos. Vuelve a intentarlo en unos minutos.',
   tiempoPreparacion: 25,
   tipos: { retiro: true, delivery: true, mesa: false }, // pedidos en la mesa: listos para cuando tengan mesas
+  programar: true, // el cliente puede elegir una hora más tarde (mismo día)
+  grupos: true, // pedidos grupales: cada uno elige lo suyo desde un enlace compartido
   delivery: { costo: 2000, minimo: 8000, zona: 'Consulta por WhatsApp si llegamos a tu sector.' },
   pagos: { efectivo: true, transferencia: true, tarjeta: true },
   datosTransferencia: '',
@@ -71,6 +73,8 @@ export function normalizarAjustes(raw) {
       delivery: boolO(tipos.delivery, d.tipos.delivery),
       mesa: boolO(tipos.mesa, d.tipos.mesa),
     },
+    programar: boolO(r.programar, d.programar),
+    grupos: boolO(r.grupos, d.grupos),
     delivery: {
       costo: entre(delivery.costo, 0, 100_000, d.delivery.costo),
       minimo: entre(delivery.minimo, 0, 1_000_000, d.delivery.minimo),

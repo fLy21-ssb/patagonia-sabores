@@ -58,6 +58,29 @@ function proximaApertura(horario, ahora) {
   return null;
 }
 
+const aHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const SALTO = 15; // minutos entre una hora y otra
+
+/**
+ * Horas de hoy en que se puede pedir para más tarde, cada 15 minutos (['13:00', '13:15', ...]).
+ * La primera da tiempo de cocinar (preparación + 15 min) y no es antes de abrir + preparación;
+ * la última es 15 minutos antes del cierre. Vacío si el local cierra hoy o está en pausa.
+ */
+export function horasProgramables(ajustes, ahora = horaChile()) {
+  if (!ajustes.programar || !ajustes.recibiendoPedidos) return [];
+  const hoy = ajustes.horario[ahora.dow];
+  if (!hoy?.abierto) return [];
+  const desde = aMinutos(hoy.desde);
+  let hasta = aMinutos(hoy.hasta);
+  if (hasta <= desde) hasta = 24 * 60; // abierto todo el día o cierra después de medianoche
+  const prep = ajustes.tiempoPreparacion;
+  const redondear = (m) => Math.ceil(m / SALTO) * SALTO;
+  const primera = Math.max(redondear(ahora.minutos + prep + SALTO), redondear(desde + prep));
+  const horas = [];
+  for (let m = primera; m <= hasta - SALTO; m += SALTO) horas.push(aHHMM(m));
+  return horas;
+}
+
 /** ¿Se pueden recibir pedidos ahora? Devuelve también un mensaje para mostrar. */
 export function estadoLocal(ajustes, ahora = horaChile()) {
   const hoy = ajustes.horario[ahora.dow];

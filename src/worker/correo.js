@@ -260,7 +260,10 @@ export function correoPedido({ pedido, items, aj, origen, evento }) {
     asunto = `Recibimos tu pedido ${n}`;
     titulo = `Recibimos tu pedido ${n}`;
     const cuando = pedido.tipo === 'delivery' ? 'salga a tu dirección' : 'esté listo para retirar';
-    intro = `${hola}, gracias por pedir en ${aj.nombre}. Ya estamos en eso: te escribimos de nuevo apenas tu pedido ${cuando}.\n\nTiempo estimado: unos ${aj.tiempoPreparacion} minutos.`;
+    const plazo = pedido.programado
+      ? `Lo tendremos ${pedido.tipo === 'delivery' ? 'en tu dirección cerca' : 'listo'} de las ${pedido.programado}, como lo pediste.`
+      : `Tiempo estimado: unos ${aj.tiempoPreparacion} minutos.`;
+    intro = `${hola}, gracias por pedir en ${aj.nombre}. ${pedido.programado ? 'Quedó agendado' : 'Ya estamos en eso'}: te escribimos de nuevo apenas tu pedido ${cuando}.\n\n${plazo}`;
     extra =
       tablaPedido(pedido, items) +
       datoCaja('Entrega', lugar) +
@@ -405,7 +408,9 @@ export async function avisarPorCorreo(env, pedido, evento, origen, items = null)
     const aj = await leerAjustes(env);
     const lista =
       items ||
-      (await env.DB.prepare('SELECT * FROM pedido_items WHERE pedido_id = ? ORDER BY id').bind(pedido.id).all()).results;
+      (await env.DB.prepare('SELECT * FROM pedido_items WHERE pedido_id = ? ORDER BY id').bind(pedido.id).all()).results.map((i) =>
+        i.persona ? { ...i, nombre: `${i.nombre} (${i.persona})` } : i,
+      );
     const correo = correoPedido({ pedido, items: lista, aj, origen, evento });
     if (!correo) return { enviado: false };
     const { resultados, error } = await enviarCorreos(env, cfg, [{ id: pedido.id, para: pedido.cliente_email, ...correo }], origen);

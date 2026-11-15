@@ -9,6 +9,27 @@ export const misPedidos = crearStore('ps-pedidos-v1', []);
 export const mesaActual = crearStore('ps-mesa-v1', null, { tipo: 'session' });
 export const instalarDescartado = crearStore('ps-instalar-cerrado-v1', false);
 
+/** Pedidos grupales de este dispositivo: token → { clave (solo si lo armé yo), parteId, nombre, organizador }. */
+export const misGrupos = crearStore('ps-grupos-v1', {});
+/** Pedido grupal en el que estoy eligiendo lo mío: el menú pasa a "modo grupo". { token, organizador } */
+export const grupoActivo = crearStore('ps-grupo-activo-v1', null);
+/** Pedido grupal que el organizador está por enviar (lo usa la página de pago). */
+export const grupoAPagar = crearStore('ps-grupo-pagar-v1', null, { tipo: 'session' });
+
+export const datosGrupo = (token) => misGrupos.get()[token] || null;
+export function guardarDatosGrupo(token, cambios) {
+  misGrupos.set((m) => ({ ...m, [token]: { ...(m[token] || {}), ...cambios } }));
+}
+/** Clave de este dispositivo dentro de un grupo (para editar solo lo propio). */
+export function parteIdDe(token) {
+  const actual = datosGrupo(token)?.parteId;
+  if (actual) return actual;
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const id = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  guardarDatosGrupo(token, { parteId: id });
+  return id;
+}
+
 const claveLinea = (productoId, acompanamientoId, comentario) =>
   `${productoId}|${acompanamientoId ?? ''}|${comentario.trim().toLowerCase()}`;
 

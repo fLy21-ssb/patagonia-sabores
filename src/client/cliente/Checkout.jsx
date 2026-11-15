@@ -1,13 +1,27 @@
+import { Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { ArrowLeft, Banknote, Bell, Bike, CreditCard, Landmark, Megaphone, Store, TicketPercent, UtensilsCrossed, X } from 'lucide-preact';
 import { api } from '../shared/api.js';
-import { clp, EMAIL_RE, PAGOS, sugerirCorreo } from '../shared/format.js';
+import { clp, EMAIL_RE, PAGOS, porPersona, sugerirCorreo } from '../shared/format.js';
 import { navegar } from '../shared/hooks.js';
 import { useStore } from '../shared/store.js';
 import { Switch, Vacio, toast } from '../shared/ui.jsx';
 import { Rombo } from '../shared/simbolos.jsx';
 import { esIOS, esStandalone, pushSoportado, suscribirPush } from '../shared/pwa.js';
-import { carrito, cuponGuardado, descuentoDe, mesaActual, misDatos, precioDe, recordarPedido, totalCarrito, unidades } from './estado.js';
+import {
+  carrito,
+  cuponGuardado,
+  datosGrupo,
+  descuentoDe,
+  grupoActivo,
+  grupoAPagar,
+  mesaActual,
+  misDatos,
+  precioDe,
+  recordarPedido,
+  totalCarrito,
+  unidades,
+} from './estado.js';
 
 const ICONO_PAGO = { efectivo: Banknote, transferencia: Landmark, tarjeta: CreditCard };
 
@@ -29,9 +43,36 @@ function CheckoutListo({ menu, recargarMenu }) {
   const datos = useStore(misDatos);
   const productosPorId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
 
-  const tiposDisponibles = ['retiro', 'delivery', 'mesa'].filter((t) => local.tipos[t] && (t !== 'mesa' || mesa));
-  const [tipo, setTipo] = useState(mesa && local.tipos.mesa ? 'mesa' : tiposDisponibles.find((t) => t !== 'mesa') || tiposDisponibles[0]);
-  const [nombre, setNombre] = useState(datos.nombre || '');
+  // Pedido grupal: los productos vienen de lo que eligió cada persona (solo el organizador llega aquí).
+  const grupoPago = useStore(grupoAPagar);
+  const claveGrupo = grupoPago ? datosGrupo(grupoPago.token)?.clave : null;
+  const [grupoDatos, setGrupoDatos] = useState(null);
+  const [grupoError, setGrupoError] = useState(null);
+  useEffect(() => {
+    if (!grupoPago) return;
+    if (!claveGrupo) {
+      grupoAPagar.set(null);
+      return;
+    }
+    setGrupoDatos(null);
+    api(`/api/grupos/${grupoPago.token}`).then(setGrupoDatos).catch(setGrupoError);
+  }, [grupoPago?.token]);
+
+  // Para más tarde (mismo día)
+  const programables = estado.programables || [];
+  const puedeProgramar = Boolean(local.programar) && programables.length > 0;
+  const [cuando, setCuando] = useState(estado.abierto ? 'ahora' : 'despues');
+  const [horaProg, setHoraProg] = useState('');
+  useEffect(() => {
+    if (horaProg && !programables.includes(horaProg)) setHoraProg('');
+  }, [programables.join(',')]);
+  useEffect(() => {
+    if (!estado.abierto && puedeProgramar) setCuando('despues');
+  }, [estado.abierto, puedeProgramar]);
+
+  const tiposDisponibles = ['retiro', 'delivery', 'mesa'].filter((t) => local.tipos[t] && (t !== 'mesa' || (mesa && !grupoPago)));
+  const [tipo, setTipo] = useState(mesa && local.tipos.mesa && !grupoPago ? 'mesa' : tiposDisponibles.find((t) => t !== 'mesa') || tiposDisponibles[0]);
+  const [nombre, setNombre] = useState(datos.nombre || (grupoPago && datosGrupo(grupoPago.token)?.nombre) || '');
   const [telefono, setTelefono] = useState(datos.telefono || '');
   const [email, setEmail] = useState(datos.email || '');
   const [direccion, setDireccion] = useState(datos.direccion || '');
@@ -47,7 +88,26 @@ function CheckoutListo({ menu, recargarMenu }) {
   const [enviando, setEnviando] = useState(false);
   const [trampa, setTrampa] = useState('');
 
-  if (!lineas.length) {
+  if (grupoPago && (grupoError || (grupoDatos && grupoDatos.partes.length === 0))) {
+    return (
+      <div class="page">
+        <BarraVolver titulo="Enviar pedido grupal" />
+        <Vacio titulo={grupoError ? 'No pudimos cargar el pedido grupal' : 'Nadie ha elegido todavía'} texto={grupoError?.message || 'Comparte el enlace para que se sumen.'}>
+          <a class="btn btn-primary" href={`#/grupo/${grupoPago.token}`}>
+            Volver al pedido grupal
+          </a>
+        </Vacio>
+      </div>
+    );
+  }
+  if (grupoPago && !grupoDatos) {
+    return (
+      <div class="page-center">
+        <div class="spinner" />
+      </div>
+    );
+  }
+  if (!grupoPago && !lineas.length) {
     return (
       <div class="page">
         <BarraVolver titulo="Finalizar pedido" />
@@ -60,7 +120,24 @@ function CheckoutListo({ menu, recargarMenu }) {
     );
   }
 
-  const subtotal = totalCarrito(lineas, productosPorId);
+  // Lo que se va a pedir: el carro, o lo de todos en un pedido grupal (con el nombre de cada persona).
+  const items = grupoPago
+    ? grupoDatos.partes.flatMap((pt) =>
+        pt.items.map((it, i) => ({
+          clave: `${pt.num}-${i}`,
+          productoId: it.productoId,
+          nombre: it.nombre,
+          precio: it.precio,
+          cantidad: it.cantidad,
+          acompanamiento: it.acompanamiento,
+          comentario: it.comentario,
+          persona: pt.nombre,
+        })),
+      )
+    : lineas;
+  const programando = tipo !== 'mesa' && cuando === 'despues' && puedeProgramar;
+
+  const subtotal = totalCarrito(items, productosPorId);
   const envio = tipo === 'delivery' ? local.delivery.costo : 0;
   const descuento = descuentoDe(cupon, subtotal);
   const total = subtotal + envio - descuento;
@@ -78,6 +155,7 @@ function CheckoutListo({ menu, recargarMenu }) {
     if (emailLimpio && !emailValido) e.email = 'Revisa tu correo (ejemplo: nombre@gmail.com).';
     if (tipo === 'delivery' && !direccion.trim()) e.direccion = '¿A dónde te lo llevamos?';
     if (!pago) e.pago = 'Elige cómo pagas.';
+    if (programando && !horaProg) e.programado = 'Elige a qué hora lo quieres.';
     setErrores(e);
     return Object.keys(e).length === 0;
   }
@@ -111,13 +189,17 @@ function CheckoutListo({ menu, recargarMenu }) {
           metodoPago: pago,
           cupon: cupon && descuento > 0 ? cupon.codigo : undefined,
           promos: conPromos && emailValido,
+          programado: programando ? horaProg : undefined,
+          grupo: grupoPago ? { token: grupoPago.token, clave: claveGrupo } : undefined,
           web: trampa,
-          items: lineas.map((l) => ({
-            productoId: l.productoId,
-            cantidad: l.cantidad,
-            acompanamientoId: l.acompanamientoId,
-            comentario: l.comentario,
-          })),
+          items: grupoPago
+            ? []
+            : lineas.map((l) => ({
+                productoId: l.productoId,
+                cantidad: l.cantidad,
+                acompanamientoId: l.acompanamientoId,
+                comentario: l.comentario,
+              })),
         },
       });
       recordarPedido({ token: r.token, id: r.id, creado: new Date().toISOString(), total, estado: 'pendiente' });
@@ -126,7 +208,12 @@ function CheckoutListo({ menu, recargarMenu }) {
           ? { nombre: nombre.trim(), telefono: telefono.trim(), email: emailValido ? emailLimpio : '', direccion: direccion.trim(), recordar: true }
           : { nombre: '', telefono: '', email: '', direccion: '', recordar: false },
       );
-      carrito.set([]);
+      if (grupoPago) {
+        if (grupoActivo.get()?.token === grupoPago.token) grupoActivo.set(null);
+        grupoAPagar.set(null);
+      } else {
+        carrito.set([]);
+      }
       if (cupon && cuponGuardado.get()?.codigo === cupon.codigo) cuponGuardado.set(null);
       try {
         sessionStorage.setItem('ps-recien', r.token);
@@ -147,6 +234,17 @@ function CheckoutListo({ menu, recargarMenu }) {
       }
       navegar(`/pedido/${r.token}`, { reemplazar: true });
     } catch (e) {
+      if (e.data?.campo === 'programado') {
+        setHoraProg('');
+        setErrores((x) => ({ ...x, programado: e.message }));
+      }
+      if (e.data?.grupo && grupoPago) {
+        toast(e.message, 'error', { ms: 6000 });
+        const token = grupoPago.token;
+        grupoAPagar.set(null);
+        navegar(`/grupo/${token}`, { reemplazar: true });
+        return;
+      }
       if (e.data?.campo === 'cupon') {
         setCupon(null);
         setErrores((x) => ({ ...x, cupon: e.message }));
@@ -164,9 +262,14 @@ function CheckoutListo({ menu, recargarMenu }) {
 
   return (
     <form class="page checkout" onSubmit={confirmarPedido} noValidate>
-      <BarraVolver titulo="Finalizar pedido" />
+      <BarraVolver titulo={grupoPago ? 'Enviar pedido grupal' : 'Finalizar pedido'} />
 
-      {!estado.abierto && <div class="notice bad">{estado.mensaje}</div>}
+      {!estado.abierto &&
+        (puedeProgramar && tipo !== 'mesa' ? (
+          <div class="notice">{estado.mensaje}. Puedes dejar tu pedido programado para hoy.</div>
+        ) : (
+          <div class="notice bad">{estado.mensaje}</div>
+        ))}
 
       <section class="card card-pad stack">
         <h2 class="card-title">
@@ -198,6 +301,52 @@ function CheckoutListo({ menu, recargarMenu }) {
           })}
         </div>
         {tipo === 'delivery' && local.delivery.zona && <p class="hint">{local.delivery.zona}</p>}
+        {tipo !== 'mesa' && puedeProgramar && (
+          <div class="cuando stack">
+            {estado.abierto && (
+              <>
+                <span class="label">¿Para cuándo?</span>
+                <div class="options cols-2">
+                  <label class={`option compact${cuando === 'ahora' ? ' on' : ''}`}>
+                    <input type="radio" name="cuando" checked={cuando === 'ahora'} onChange={() => setCuando('ahora')} />
+                    <span class="grow">
+                      <strong>Lo antes posible</strong>
+                      <small>En unos {local.tiempoPreparacion} min</small>
+                    </span>
+                  </label>
+                  <label class={`option compact${cuando === 'despues' ? ' on' : ''}`}>
+                    <input type="radio" name="cuando" checked={cuando === 'despues'} onChange={() => setCuando('despues')} />
+                    <span class="grow">
+                      <strong>Más tarde</strong>
+                      <small>Hoy, a la hora que elijas</small>
+                    </span>
+                  </label>
+                </div>
+              </>
+            )}
+            {programando && (
+              <label class="field">
+                <span class="label">{tipo === 'delivery' ? '¿A qué hora te lo llevamos?' : '¿A qué hora lo retiras?'}</span>
+                <select
+                  class={`input${errores.programado ? ' invalid' : ''}`}
+                  value={horaProg}
+                  onChange={(e) => {
+                    setHoraProg(e.currentTarget.value);
+                    setErrores((x) => ({ ...x, programado: null }));
+                  }}
+                >
+                  <option value="">Elige la hora</option>
+                  {programables.map((h) => (
+                    <option key={h} value={h}>
+                      {tipo === 'delivery' ? `Cerca de las ${h}` : `Listo a las ${h}`}
+                    </option>
+                  ))}
+                </select>
+                {errores.programado && <span class="error-text">{errores.programado}</span>}
+              </label>
+            )}
+          </div>
+        )}
       </section>
 
       <section class="card card-pad stack">
@@ -310,21 +459,32 @@ function CheckoutListo({ menu, recargarMenu }) {
           <span class="paso-n">4</span> Resumen
         </h2>
         <ul class="resumen">
-          {lineas.map((l) => (
-            <li key={l.clave}>
-              <span class="qty">{l.cantidad}×</span>
-              <span class="grow">
-                {l.nombre}
-                {l.acompanamiento && <small>Con {l.acompanamiento}</small>}
-                {l.comentario && <small class="comment">“{l.comentario}”</small>}
-              </span>
-              <span class="num">{clp(precioDe(l, productosPorId) * l.cantidad)}</span>
-            </li>
+          {porPersona(items).map((g) => (
+            <Fragment key={g.persona || 'todos'}>
+              {g.persona && <li class="resumen-persona">{g.persona}</li>}
+              {g.items.map((l) => (
+                <li key={l.clave}>
+                  <span class="qty">{l.cantidad}×</span>
+                  <span class="grow">
+                    {l.nombre}
+                    {l.acompanamiento && <small>Con {l.acompanamiento}</small>}
+                    {l.comentario && <small class="comment">“{l.comentario}”</small>}
+                  </span>
+                  <span class="num">{clp(precioDe(l, productosPorId) * l.cantidad)}</span>
+                </li>
+              ))}
+            </Fragment>
           ))}
         </ul>
-        <a class="btn btn-ghost btn-sm editar" href="#/">
-          Agregar o cambiar productos
-        </a>
+        {grupoPago ? (
+          <a class="btn btn-ghost btn-sm editar" href={`#/grupo/${grupoPago.token}`}>
+            Volver al pedido grupal
+          </a>
+        ) : (
+          <a class="btn btn-ghost btn-sm editar" href="#/">
+            Agregar o cambiar productos
+          </a>
+        )}
         <CampoCupon
           subtotal={subtotal}
           cupon={cupon}
@@ -416,7 +576,7 @@ function CheckoutListo({ menu, recargarMenu }) {
       )}
 
       <div class="checkout-bar">
-        <button class="btn btn-primary btn-lg btn-block" type="submit" disabled={enviando || !estado.abierto || faltaMinimo}>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" disabled={enviando || (!estado.abierto && !programando) || faltaMinimo}>
           {enviando ? (
             <>
               <span class="spinner" /> Enviando…
@@ -428,7 +588,8 @@ function CheckoutListo({ menu, recargarMenu }) {
           )}
         </button>
         <p class="hint center">
-          {unidades(lineas)} productos · pagas al {tipo === 'delivery' ? 'recibir' : tipo === 'mesa' ? 'final' : 'retirar'}
+          {programando && horaProg ? `Para las ${horaProg} · ` : ''}
+          {unidades(items)} productos · pagas al {tipo === 'delivery' ? 'recibir' : tipo === 'mesa' ? 'final' : 'retirar'}
           {pago === 'transferencia' ? ' o por transferencia' : ''}
           {descuento > 0 ? ` · ahorras ${clp(descuento)}` : ''}
         </p>

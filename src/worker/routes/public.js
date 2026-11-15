@@ -1,7 +1,7 @@
 // API pública: menú, crear pedido, seguimiento y suscripción a avisos.
 import { HttpError, json, readJson } from '../http.js';
 import { ajustesPublicos, leerAjustes, parsearAjustes } from '../settings.js';
-import { estadoLocal, horaChile } from '../time.js';
+import { estadoLocal, horaChile, horasProgramables } from '../time.js';
 import { ahoraIso, clp, email, entero, telefono, texto, tokenAleatorio } from '../util.js';
 import { limitar } from '../limits.js';
 import { mesaValida } from '../auth.js';
@@ -10,6 +10,7 @@ import { suscripcionValida } from '../push.js';
 import { pedidoPublicoDTO, productoPublicoDTO } from '../dto.js';
 import { evaluarCupon } from '../cupones.js';
 import { avisarPorCorreo } from '../correo.js';
+import { MAX_LINEAS_PARTE, MAX_PARTES, itemsDeGrupo } from './grupos.js';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,40}$/;
 const subjectDe = (env, url) => env.VAPID_SUBJECT || url.origin;
@@ -34,7 +35,12 @@ async function menu({ env }) {
   const ajustes = parsearAjustes(aj.results[0]?.datos);
   return json({
     local: ajustesPublicos(ajustes),
-    estado: { ...estadoLocal(ajustes, ahora), dow: ahora.dow, fecha: ahora.fecha },
+    estado: {
+      ...estadoLocal(ajustes, ahora),
+      dow: ahora.dow,
+      fecha: ahora.fecha,
+      programables: horasProgramables(ajustes, ahora),
+    },
     categorias: cats.results,
     productos: prods.results.map(productoPublicoDTO),
     acompanamientos: acomps.results,
@@ -60,12 +66,33 @@ async function crearPedido({ request, env, ctx, url }) {
   const ahora = horaChile();
   const aj = await leerAjustes(env);
   const estado = estadoLocal(aj, ahora);
-  if (!estado.abierto) throw new HttpError(409, estado.mensaje);
 
   const tipo = String(b.tipo || '');
   if (!['retiro', 'delivery', 'mesa'].includes(tipo) || !aj.tipos[tipo]) {
     throw new HttpError(400, 'Ese tipo de pedido no está disponible.');
   }
+
+  // Para más tarde (mismo día): se puede dejar programado aunque el local aún no abra.
+  const programado = b.programado ? String(b.programado) : null;
+  if (programado) {
+    if (tipo === 'mesa') throw new HttpError(400, 'Los pedidos en la mesa no se pueden programar.');
+    if (!horasProgramables(aj, ahora).includes(programado)) {
+      throw new HttpError(409, 'Esa hora ya no está disponible. Elige otra.', { campo: 'programado' });
+    }
+  } else if (!estado.abierto) {
+    throw new HttpError(409, estado.mensaje);
+  }
+
+  // Pedido grupal: los productos vienen de lo que eligió cada persona, no del carro.
+  let grupo = null;
+  let entrada = b.items;
+  if (b.grupo) {
+    if (!aj.grupos) throw new HttpError(403, 'Los pedidos grupales no están disponibles por ahora.');
+    const r = await itemsDeGrupo(env, String(b.grupo.token || ''), String(b.grupo.clave || ''), ahora);
+    grupo = r.grupo;
+    entrada = r.items;
+  }
+  const maxLineas = grupo ? MAX_PARTES * MAX_LINEAS_PARTE : 40;
 
   let mesa = null;
   if (tipo === 'mesa') {
@@ -88,9 +115,9 @@ async function crearPedido({ request, env, ctx, url }) {
     throw new HttpError(400, 'Elige cómo vas a pagar.');
   }
 
-  if (!Array.isArray(b.items) || b.items.length === 0) throw new HttpError(400, 'Tu carro está vacío.');
-  if (b.items.length > 40) throw new HttpError(400, 'Son demasiados productos para un solo pedido.');
-  const ids = [...new Set(b.items.map((i) => entero(i?.productoId, { min: 1, campo: 'un producto' })))];
+  if (!Array.isArray(entrada) || entrada.length === 0) throw new HttpError(400, 'Tu carro está vacío.');
+  if (entrada.length > maxLineas) throw new HttpError(400, 'Son demasiados productos para un solo pedido.');
+  const ids = [...new Set(entrada.map((i) => entero(i?.productoId, { min: 1, campo: 'un producto' })))];
 
   const [prodRes, acompRes] = await env.DB.batch([
     env.DB.prepare('SELECT * FROM productos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(ids)),
@@ -102,13 +129,15 @@ async function crearPedido({ request, env, ctx, url }) {
 
   const lineas = [];
   const usoStock = new Map();
-  for (const it of b.items) {
+  for (const it of entrada) {
     const p = productos.get(Number(it.productoId));
+    const persona = grupo ? texto(it.persona, 40) : '';
+    const de = persona ? ` (lo eligió ${persona})` : '';
     if (!p || !p.activo) {
-      throw new HttpError(409, 'Uno de los productos ya no está disponible. Revisa tu carro.', { productoId: Number(it.productoId) });
+      throw new HttpError(409, `Uno de los productos${de} ya no está disponible. Revisa el pedido.`, { productoId: Number(it.productoId) });
     }
     if (!(p.dias & bitHoy)) {
-      throw new HttpError(409, `"${p.nombre}" no está en el menú de hoy.`, { productoId: p.id });
+      throw new HttpError(409, `"${p.nombre}"${de} no está en el menú de hoy.`, { productoId: p.id });
     }
     const cantidad = entero(it.cantidad, { min: 1, max: 30, campo: `la cantidad de "${p.nombre}"` });
     let acompanamiento = '';
@@ -118,7 +147,7 @@ async function crearPedido({ request, env, ctx, url }) {
       acompanamiento = acomps.get(aid);
     }
     const comentario = texto(it.comentario, 140);
-    lineas.push({ p, cantidad, acompanamiento, comentario, total: p.precio * cantidad });
+    lineas.push({ p, cantidad, acompanamiento, comentario, persona, total: p.precio * cantidad });
     usoStock.set(p.id, (usoStock.get(p.id) || 0) + cantidad);
   }
 
@@ -152,14 +181,17 @@ async function crearPedido({ request, env, ctx, url }) {
   const sentencias = [
     env.DB.prepare(
       `INSERT INTO pedidos (token, tipo, mesa, cliente_nombre, cliente_telefono, cliente_email, direccion, notas, metodo_pago,
-         subtotal, costo_envio, cupon, descuento, total, fecha_local, hora_local, creado, actualizado)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(token, tipo, mesa, nombre, tel, correo, direccion, notas, metodoPago, subtotal, envio, cupon || '', descuento, total, ahora.fecha, ahora.hora, ts, ts),
+         subtotal, costo_envio, cupon, descuento, total, fecha_local, hora_local, programado, grupo_id, creado, actualizado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      token, tipo, mesa, nombre, tel, correo, direccion, notas, metodoPago, subtotal, envio, cupon || '', descuento, total,
+      ahora.fecha, ahora.hora, programado, grupo?.id ?? null, ts, ts,
+    ),
     ...lineas.map((l) =>
       env.DB.prepare(
-        `INSERT INTO pedido_items (pedido_id, producto_id, nombre, precio, cantidad, acompanamiento, comentario, total)
-         VALUES ((SELECT id FROM pedidos WHERE token = ?), ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(token, l.p.id, l.p.nombre, l.p.precio, l.cantidad, l.acompanamiento, l.comentario, l.total),
+        `INSERT INTO pedido_items (pedido_id, producto_id, nombre, precio, cantidad, acompanamiento, comentario, persona, total)
+         VALUES ((SELECT id FROM pedidos WHERE token = ?), ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(token, l.p.id, l.p.nombre, l.p.precio, l.cantidad, l.acompanamiento, l.comentario, l.persona, l.total),
     ),
     ...[...usoStock]
       .filter(([id]) => productos.get(id).stock !== null)
@@ -169,6 +201,16 @@ async function crearPedido({ request, env, ctx, url }) {
   ];
   // El uso del código se cuenta en la misma transacción: si se agotó recién, el pedido no se guarda.
   if (cupon) sentencias.push(env.DB.prepare('UPDATE cupones SET usos = usos + 1 WHERE codigo = ?').bind(cupon));
+  // El grupo queda marcado como pedido en la misma transacción (un segundo envío choca con grupo_ya_pedido).
+  if (grupo) {
+    sentencias.push(
+      env.DB.prepare("UPDATE grupos SET estado = 'pedido', pedidos = pedidos + 1, pedido_token = ?, actualizado = ? WHERE id = ?").bind(
+        token,
+        ts,
+        grupo.id,
+      ),
+    );
+  }
   if (quierePromos) {
     sentencias.push(
       env.DB.prepare(
@@ -186,6 +228,9 @@ async function crearPedido({ request, env, ctx, url }) {
     if (mensaje.includes('cupon_agotado')) {
       throw new HttpError(409, `El código ${cupon} se acaba de agotar. Quítalo para continuar.`, { campo: 'cupon' });
     }
+    if (mensaje.includes('grupo_ya_pedido')) {
+      throw new HttpError(409, 'Este pedido grupal ya se envió al local.', { grupo: 'pedido' });
+    }
     if (mensaje.includes('CHECK constraint failed')) {
       throw new HttpError(409, 'Alguien se nos adelantó y se agotó un producto de tu carro. Revisa y vuelve a intentar.');
     }
@@ -195,7 +240,13 @@ async function crearPedido({ request, env, ctx, url }) {
   const pedido = await env.DB.prepare('SELECT * FROM pedidos WHERE token = ?').bind(token).first();
   ctx.waitUntil(avisarLocal(env, pedido, subjectDe(env, url)).catch((e) => console.error('avisarLocal', e)));
   if (correo) {
-    const items = lineas.map((l) => ({ cantidad: l.cantidad, nombre: l.p.nombre, acompanamiento: l.acompanamiento, comentario: l.comentario, total: l.total }));
+    const items = lineas.map((l) => ({
+      cantidad: l.cantidad,
+      nombre: l.persona ? `${l.p.nombre} (${l.persona})` : l.p.nombre,
+      acompanamiento: l.acompanamiento,
+      comentario: l.comentario,
+      total: l.total,
+    }));
     ctx.waitUntil(avisarPorCorreo(env, pedido, 'recibido', url.origin, items));
   }
   return json({ id: pedido.id, token }, 201);

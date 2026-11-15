@@ -330,6 +330,7 @@ function leerProducto(b) {
     con_acompanamiento: bit(b.conAcompanamiento),
     dias: entero(b.dias ?? 127, { min: 0, max: 127, campo: 'los días' }),
     destacado: bit(b.destacado),
+    sugerido: bit(b.sugerido),
     activo: b.activo === undefined ? 1 : bit(b.activo),
   };
 }
@@ -345,10 +346,10 @@ async function crearProducto({ request, env }) {
   const ts = ahoraIso();
   const { orden } = await env.DB.prepare('SELECT COALESCE(MAX(orden), 0) + 1 AS orden FROM productos').first();
   const fila = await env.DB.prepare(
-    `INSERT INTO productos (nombre, descripcion, precio, categoria_id, stock, imagen, con_acompanamiento, dias, destacado, activo, orden, creado, actualizado)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    `INSERT INTO productos (nombre, descripcion, precio, categoria_id, stock, imagen, con_acompanamiento, dias, destacado, sugerido, activo, orden, creado, actualizado)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
   )
-    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.activo, orden, ts, ts)
+    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.sugerido, d.activo, orden, ts, ts)
     .first();
   return json({ producto: productoDTO(fila) }, 201);
 }
@@ -362,10 +363,10 @@ async function editarProducto({ request, env, ctx, params }) {
     `UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, categoria_id = ?, stock = ?, imagen = ?,
        imagen_credito = CASE WHEN imagen IS ? THEN imagen_credito ELSE '' END,
        imagen_fuente = CASE WHEN imagen IS ? THEN imagen_fuente ELSE '' END,
-       con_acompanamiento = ?, dias = ?, destacado = ?, activo = ?, actualizado = ?
+       con_acompanamiento = ?, dias = ?, destacado = ?, sugerido = ?, activo = ?, actualizado = ?
      WHERE id = ? RETURNING *`,
   )
-    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.imagen, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.activo, ahoraIso(), id)
+    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.imagen, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.sugerido, d.activo, ahoraIso(), id)
     .first();
   if (anterior.imagen && anterior.imagen !== d.imagen) ctx.waitUntil(env.IMAGENES.delete(anterior.imagen));
   return json({ producto: productoDTO(fila) });
@@ -379,6 +380,7 @@ async function ajustarProducto({ request, env, params }) {
   const cambios = {};
   if ('activo' in b) cambios.activo = bit(b.activo);
   if ('destacado' in b) cambios.destacado = bit(b.destacado);
+  if ('sugerido' in b) cambios.sugerido = bit(b.sugerido);
   if ('dias' in b) cambios.dias = entero(b.dias, { min: 0, max: 127, campo: 'los días' });
   if ('stock' in b) cambios.stock = entero(b.stock, { min: 0, max: 100_000, campo: 'el stock', nulo: true });
   if ('sumarStock' in b) {

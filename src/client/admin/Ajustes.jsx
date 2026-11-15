@@ -115,6 +115,24 @@ export function Ajustes() {
             <Switch checked={f.tipos[k]} onChange={(v) => setSub('tipos', { [k]: v })} etiqueta={t} />
           </div>
         ))}
+        <div class="switch-row">
+          <span>
+            <strong>Pedir para más tarde</strong>
+            <small class="block muted">
+              El cliente elige una hora de hoy (cada 15 minutos, dentro del horario). También puede dejarlo agendado antes de que abras.
+            </small>
+          </span>
+          <Switch checked={f.programar} onChange={(v) => set({ programar: v })} etiqueta="Pedir para más tarde" />
+        </div>
+        <div class="switch-row">
+          <span>
+            <strong>Pedidos grupales</strong>
+            <small class="block muted">
+              Para oficinas: alguien comparte un enlace, cada uno elige lo suyo y llega como un solo pedido, con el nombre de cada persona.
+            </small>
+          </span>
+          <Switch checked={f.grupos} onChange={(v) => set({ grupos: v })} etiqueta="Pedidos grupales" />
+        </div>
         {f.tipos.mesa && (
           <a class="btn btn-outline btn-sm" href="#/mesas">
             <QrCode size={16} /> Administrar mesas y sus códigos QR

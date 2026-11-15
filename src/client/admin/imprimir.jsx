@@ -1,7 +1,7 @@
 // Impresión: ticket térmico (58/80 mm) para cocina/caja y hojas con códigos QR de las mesas.
 import { render } from 'preact';
 import qrcode from 'qrcode-generator';
-import { clp, PAGOS, TIPOS } from '../shared/format.js';
+import { clp, PAGOS, porPersona, TIPOS } from '../shared/format.js';
 
 export function qrSVG(texto) {
   const qr = qrcode(0, 'M');
@@ -59,21 +59,30 @@ export function Ticket({ p, nombreLocal }) {
         <span>PEDIDO #{p.id}</span>
         <span>{fechaTicket(p.creado)}</span>
       </div>
-      <div class="t-tipo">{p.tipo === 'mesa' ? `MESA ${p.mesa}` : TIPOS[p.tipo].corto.toUpperCase()}</div>
+      <div class="t-tipo">
+        {p.tipo === 'mesa' ? `MESA ${p.mesa}` : TIPOS[p.tipo].corto.toUpperCase()}
+        {p.grupal ? ' · GRUPAL' : ''}
+      </div>
+      {p.programado && <div class="t-tipo">PARA LAS {p.programado}</div>}
       <div>Cliente: {p.cliente.nombre}</div>
       {p.cliente.telefono && <div>Tel: {p.cliente.telefono}</div>}
       {p.direccion && <div>Dir: {p.direccion}</div>}
       <div class="t-sep" />
-      {p.items.map((it) => (
-        <div key={it.id} class="t-item">
-          <div class="t-row">
-            <strong>
-              {it.cantidad} x {it.nombre}
-            </strong>
-            <span>{clp(it.total)}</span>
-          </div>
-          {it.acompanamiento && <div class="t-sub">&gt; {it.acompanamiento}</div>}
-          {it.comentario && <div class="t-sub t-coment">* {it.comentario}</div>}
+      {porPersona(p.items).map((g) => (
+        <div key={g.persona || 'todos'}>
+          {g.persona && <div class="t-persona">{g.persona.toUpperCase()}</div>}
+          {g.items.map((it) => (
+            <div key={it.id} class="t-item">
+              <div class="t-row">
+                <strong>
+                  {it.cantidad} x {it.nombre}
+                </strong>
+                <span>{clp(it.total)}</span>
+              </div>
+              {it.acompanamiento && <div class="t-sub">&gt; {it.acompanamiento}</div>}
+              {it.comentario && <div class="t-sub t-coment">* {it.comentario}</div>}
+            </div>
+          ))}
         </div>
       ))}
       <div class="t-sep" />

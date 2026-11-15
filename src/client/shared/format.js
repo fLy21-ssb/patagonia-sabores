@@ -29,6 +29,18 @@ export function fechaCorta(yyyyMmDd) {
   });
 }
 
+/** "13:30" → 810 */
+export const aMinutos = (hhmm) => {
+  const [h, m] = String(hhmm || '0:0').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/** Minuto del día (hora de Chile) de una fecha ISO o timestamp. */
+export const minutoDelDia = (fecha) => aMinutos(hora(new Date(fecha).toISOString()));
+
+/** Minutos que faltan para una hora de hoy ('13:30'); negativo si ya pasó. */
+export const minutosHasta = (hhmm, ahora = Date.now()) => aMinutos(hhmm) - minutoDelDia(ahora);
+
 export function minutosDesde(iso, ahora = Date.now()) {
   return Math.max(0, Math.floor((ahora - new Date(iso).getTime()) / 60000));
 }
@@ -67,6 +79,21 @@ export const ESTADOS = {
   entregado: { nombre: 'Entregado', clase: 'info' },
   cancelado: { nombre: 'Cancelado', clase: 'bad' },
 };
+
+/** Ítems agrupados por persona (pedidos grupales): [{ persona, items }]. Un pedido normal queda en un solo grupo sin nombre. */
+export function porPersona(items) {
+  const grupos = [];
+  const indice = new Map();
+  for (const it of items) {
+    const k = it.persona || '';
+    if (!indice.has(k)) {
+      indice.set(k, grupos.length);
+      grupos.push({ persona: k, items: [] });
+    }
+    grupos[indice.get(k)].items.push(it);
+  }
+  return grupos;
+}
 
 /** Para buscar sin importar tildes ni mayúsculas. */
 export const normalizar = (s) =>

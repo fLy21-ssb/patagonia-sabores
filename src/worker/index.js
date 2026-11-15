@@ -4,11 +4,13 @@ import { Router, errorJson } from './http.js';
 import { rutasPublicas } from './routes/public.js';
 import { rutasAdmin } from './routes/admin.js';
 import { rutasPromociones } from './routes/promociones.js';
+import { rutasGrupos } from './routes/grupos.js';
 
 const router = new Router();
 rutasPublicas(router);
 rutasAdmin(router);
 rutasPromociones(router);
+rutasGrupos(router);
 
 const IMAGEN_RE = /^p\/[A-Za-z0-9_-]{8,40}\.(webp|jpg|png)$/;
 const TIPO_POR_EXT = { webp: 'image/webp', jpg: 'image/jpeg', png: 'image/png' };
@@ -34,6 +36,8 @@ export async function limpieza(env) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM limites WHERE expira < ?').bind(ahora),
     env.DB.prepare('DELETE FROM suscripciones_pedido WHERE pedido_id IN (SELECT id FROM pedidos WHERE creado < ?)').bind(hace2dias),
+    // Pedidos grupales de días anteriores (lo que eligió cada persona se borra con ellos)
+    env.DB.prepare('DELETE FROM grupos WHERE creado < ?').bind(hace2dias),
   ]);
 }
 

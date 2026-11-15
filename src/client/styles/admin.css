@@ -2347,3 +2347,52 @@ body:has(.bottom-nav) .toasts {
   font-family: var(--font);
   letter-spacing: 0;
 }
+
+/* ---------- Pedidos grupales y programados ---------- */
+.pitems .pitems-persona {
+  margin-top: 2px;
+  font-family: var(--font-label);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ciruela);
+}
+.pitems .pitems-persona:first-child {
+  margin-top: 0;
+}
+.pill.grupal {
+  background: var(--sol-2);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.elapsed.prog {
+  color: var(--ciruela);
+}
+.pcard-programado {
+  margin: 0;
+  padding: 6px 10px;
+  border: 2px dashed var(--ciruela);
+  border-radius: 10px;
+  background: #f6e6f4;
+  color: var(--ciruela);
+  font-weight: 800;
+  font-size: 0.88rem;
+}
+.pcard-programado.warn {
+  border-color: #a35b00;
+  background: var(--warn-soft);
+  color: #7a4300;
+}
+.pcard-programado.bad {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--bad);
+  color: #fff;
+}
+.ticket .t-persona {
+  margin: 6px 0 2px;
+  padding-bottom: 1px;
+  border-bottom: 1px dashed #000;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}

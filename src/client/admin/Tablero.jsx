@@ -1,5 +1,8 @@
+import { Fragment } from 'preact';
 import { useState } from 'preact/hooks';
 import {
+  CalendarClock,
+  Users,
   Archive,
   ArrowRight,
   BellRing,
@@ -20,7 +23,21 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-preact';
-import { clp, ESTADOS, fechaCorta, hace, hora, linkWhatsapp, minutosDesde, PAGOS, TIPOS } from '../shared/format.js';
+import {
+  aMinutos,
+  clp,
+  ESTADOS,
+  fechaCorta,
+  hace,
+  hora,
+  linkWhatsapp,
+  minutoDelDia,
+  minutosDesde,
+  minutosHasta,
+  PAGOS,
+  porPersona,
+  TIPOS,
+} from '../shared/format.js';
 import { useAhora } from '../shared/hooks.js';
 import { useStore } from '../shared/store.js';
 import { Sheet, Switch, Vacio, confirmar, toast } from '../shared/ui.jsx';
@@ -47,6 +64,33 @@ const COLUMNAS = [
 
 const ICONO_TIPO = { retiro: Store, delivery: Bike, mesa: UtensilsCrossed };
 
+/** Minuto del día en que el pedido tiene que estar listo: la hora pedida o la llegada + preparación. */
+const horaObjetivo = (p, prep) => (p.programado ? aMinutos(p.programado) : minutoDelDia(p.creado) + prep);
+
+/** Productos de un pedido; en los grupales, con el nombre de cada persona como encabezado. */
+function ItemsPedido({ items, grande = false, precios = false }) {
+  return (
+    <ul class={`pitems${grande ? ' grande' : ''}`}>
+      {porPersona(items).map((g) => (
+        <Fragment key={g.persona || 'todos'}>
+          {g.persona && <li class="pitems-persona">{g.persona}</li>}
+          {g.items.map((it) => (
+            <li key={it.id}>
+              <span class="q">{it.cantidad}</span>
+              <span class="grow">
+                {it.nombre}
+                {it.acompanamiento && <small class="acomp">+ {it.acompanamiento}</small>}
+                {it.comentario && <small class="coment">“{it.comentario}”</small>}
+              </span>
+              {precios && <span class="num">{clp(it.total)}</span>}
+            </li>
+          ))}
+        </Fragment>
+      ))}
+    </ul>
+  );
+}
+
 export function Tablero() {
   const t = useStore(tablero);
   const ajustes = useStore(ajustesStore);
@@ -54,8 +98,13 @@ export function Tablero() {
   const ahora = useAhora(20_000);
   const [detalle, setDetalle] = useState(null);
 
-  const de = (c) =>
-    c.estado ? t.lista.filter((p) => p.estado === c.estado) : t.lista.filter((p) => ['entregado', 'cancelado'].includes(p.estado)).reverse();
+  const prep = ajustes?.tiempoPreparacion || 25;
+  // Nuevos y en preparación: primero lo que hay que tener listo antes (los programados quedan en su hora).
+  const de = (c) => {
+    if (!c.estado) return t.lista.filter((p) => ['entregado', 'cancelado'].includes(p.estado)).reverse();
+    const lista = t.lista.filter((p) => p.estado === c.estado);
+    return c.estado === 'listo' ? lista : [...lista].sort((a, b) => horaObjetivo(a, prep) - horaObjetivo(b, prep));
+  };
   const hoy = t.lista.filter((p) => p.fechaLocal === t.hoy && p.estado !== 'cancelado');
   const ventasHoy = hoy.reduce((n, p) => n + p.total, 0);
   const detalleActual = detalle ? t.lista.find((p) => p.id === detalle.id) || detalle : null;
@@ -172,7 +221,23 @@ export function Tablero() {
 function TarjetaPedido({ p, ahora, onDetalle, ajustes }) {
   const [ocupado, setOcupado] = useState(false);
   const min = minutosDesde(p.creado, ahora);
-  const urgencia = p.estado === 'listo' ? '' : min >= 20 ? 'bad' : min >= 10 ? 'warn' : '';
+  const prep = ajustes?.tiempoPreparacion || 25;
+  // Programado: la urgencia depende de cuánto falta para la hora pedida, no de cuándo llegó.
+  const faltan = p.programado ? minutosHasta(p.programado, ahora) : null;
+  const urgencia =
+    p.estado === 'listo'
+      ? ''
+      : p.programado
+        ? faltan <= 0
+          ? 'bad'
+          : faltan <= prep
+            ? 'warn'
+            : 'prog'
+        : min >= 20
+          ? 'bad'
+          : min >= 10
+            ? 'warn'
+            : '';
   const siguiente = SIGUIENTE[p.estado];
   const Icono = ICONO_TIPO[p.tipo];
   const esNuevo = p.estado === 'pendiente' && ahora - new Date(p.creado).getTime() < 90_000;
@@ -199,10 +264,27 @@ function TarjetaPedido({ p, ahora, onDetalle, ajustes }) {
         <span class={`pill tipo-${p.tipo}`}>
           <Icono size={14} /> {p.tipo === 'mesa' ? `Mesa ${p.mesa}` : TIPOS[p.tipo].corto}
         </span>
-        <span class={`elapsed ${urgencia}`} title={`Llegó a las ${hora(p.creado)}`}>
-          <Clock size={14} /> {min < 1 ? 'recién' : `${min} min`}
-        </span>
+        {p.grupal && (
+          <span class="pill grupal">
+            <Users size={13} /> Grupal
+          </span>
+        )}
+        {p.programado ? (
+          <span class={`elapsed ${urgencia}`} title={`Llegó a las ${hora(p.creado)} · lo pidieron para las ${p.programado}`}>
+            <CalendarClock size={14} /> {p.programado}
+          </span>
+        ) : (
+          <span class={`elapsed ${urgencia}`} title={`Llegó a las ${hora(p.creado)}`}>
+            <Clock size={14} /> {min < 1 ? 'recién' : `${min} min`}
+          </span>
+        )}
       </div>
+      {p.programado && p.estado === 'pendiente' && (
+        <p class={`pcard-programado ${urgencia}`}>
+          {p.tipo === 'delivery' ? 'Entregar' : 'Listo'} a las <strong>{p.programado}</strong>
+          {faltan > prep ? ` · empezar a las ${hora(new Date(ahora + (faltan - prep) * 60000).toISOString())}` : faltan > 0 ? ' · empezar ya' : ' · ¡ya es la hora!'}
+        </p>
+      )}
       <div class="pcard-cliente">
         <strong>{p.cliente.nombre}</strong>
         {p.cliente.telefono && (
@@ -223,18 +305,7 @@ function TarjetaPedido({ p, ahora, onDetalle, ajustes }) {
           <TicketPercent size={13} /> {p.cupon} · −{clp(p.descuento)}
         </span>
       )}
-      <ul class="pitems">
-        {p.items.map((it) => (
-          <li key={it.id}>
-            <span class="q">{it.cantidad}</span>
-            <span class="grow">
-              {it.nombre}
-              {it.acompanamiento && <small class="acomp">+ {it.acompanamiento}</small>}
-              {it.comentario && <small class="coment">“{it.comentario}”</small>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <ItemsPedido items={p.items} />
       {p.tipo === 'delivery' && p.direccion && (
         <a class="pcard-dir" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion)}`} target="_blank" rel="noopener">
           <MapPin size={14} /> {p.direccion}
@@ -363,6 +434,16 @@ export function DetallePedido({ p, onCerrar, onCambio }) {
         <div class="row wrap">
           <span class={`pill ${ESTADOS[p.estado].clase}`}>{ESTADOS[p.estado].nombre}</span>
           <span class="pill">{p.tipo === 'mesa' ? `Mesa ${p.mesa}` : TIPOS[p.tipo].nombre}</span>
+          {p.programado && (
+            <span class="pill sun">
+              <CalendarClock size={13} /> Para las {p.programado}
+            </span>
+          )}
+          {p.grupal && (
+            <span class="pill grupal">
+              <Users size={13} /> Grupal · {new Set(p.items.map((i) => i.persona)).size} personas
+            </span>
+          )}
           <span class="pill">{PAGOS[p.metodoPago]?.nombre}</span>
           {p.eliminado && <span class="pill bad">En la papelera</span>}
           <span class="subtle small">{hace(p.creado)}</span>
@@ -399,19 +480,7 @@ export function DetallePedido({ p, onCerrar, onCambio }) {
           <NotebookPen size={15} /> {p.notas}
         </p>}
         </div>
-        <ul class="pitems grande">
-          {p.items.map((it) => (
-            <li key={it.id}>
-              <span class="q">{it.cantidad}</span>
-              <span class="grow">
-                {it.nombre}
-                {it.acompanamiento && <small class="acomp">+ {it.acompanamiento}</small>}
-                {it.comentario && <small class="coment">“{it.comentario}”</small>}
-              </span>
-              <span class="num">{clp(it.total)}</span>
-            </li>
-          ))}
-        </ul>
+        <ItemsPedido items={p.items} grande precios />
         <div class="totales-admin">
           {(p.costoEnvio > 0 || p.descuento > 0) && (
             <div class="row-between">

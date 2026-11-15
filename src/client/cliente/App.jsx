@@ -9,6 +9,7 @@ import { Checkout } from './Checkout.jsx';
 import { Seguimiento } from './Seguimiento.jsx';
 import { MisPedidos } from './MisPedidos.jsx';
 import { BajaCorreos } from './Promos.jsx';
+import { CrearGrupo, VerGrupo } from './Grupo.jsx';
 
 const CUPON_RE = /^[A-Za-z0-9_-]{3,20}$/;
 
@@ -103,6 +104,8 @@ export function App() {
   else if (ruta === '/pedir') pagina = <Checkout menu={menu} recargarMenu={cargarMenu} />;
   else if (ruta === '/mis-pedidos') pagina = <MisPedidos />;
   else if (ruta.startsWith('/baja/')) pagina = <BajaCorreos token={ruta.slice('/baja/'.length)} />;
+  else if (ruta === '/grupo/nuevo') pagina = <CrearGrupo menu={menu} />;
+  else if (ruta.startsWith('/grupo/')) pagina = <VerGrupo token={ruta.slice('/grupo/'.length)} menu={menu} />;
   else pagina = <Menu menu={menu} error={error} recargar={cargarMenu} />;
 
   return (

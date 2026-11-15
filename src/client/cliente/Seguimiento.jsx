@@ -1,7 +1,8 @@
+import { Fragment } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { ArrowLeft, Bell, BellRing, Clock, Copy, Mail, MapPin, MessageCircle, RefreshCw, RotateCcw, Share, Users } from 'lucide-preact';
 import { api } from '../shared/api.js';
-import { clp, fechaHora, hora, linkWhatsapp, PAGOS } from '../shared/format.js';
+import { clp, fechaHora, hora, linkWhatsapp, PAGOS, porPersona } from '../shared/format.js';
 import { navegar, useMensajesSW, useSondeo } from '../shared/hooks.js';
 import { Vacio, toast } from '../shared/ui.jsx';
 import { campanita, esIOS, esStandalone, mensajeErrorPush, pushSoportado, suscribirPush } from '../shared/pwa.js';
@@ -31,8 +32,11 @@ function textos(p) {
     delivery: { titulo: '¡Va en camino!', texto: 'Tu pedido ya salió. Atento a la puerta.' },
     mesa: { titulo: '¡Está listo!', texto: `Ya va camino a tu mesa ${p.mesa}.` },
   }[p.tipo];
+  const pendiente = p.programado
+    ? { titulo: '¡Pedido agendado!', texto: p.tipo === 'delivery' ? `Te lo llevamos cerca de las ${p.programado}.` : `Lo tendremos listo a las ${p.programado}.` }
+    : { titulo: '¡Recibimos tu pedido!', texto: 'En un ratito lo empezamos a preparar.' };
   return {
-    pendiente: { titulo: '¡Recibimos tu pedido!', texto: 'En un ratito lo empezamos a preparar.' },
+    pendiente,
     preparando: { titulo: 'Estamos cocinando', texto: 'Tu pedido está en preparación.' },
     listo,
     entregado: { titulo: '¡Que lo disfrutes!', texto: 'Gracias por preferirnos. ¡Te esperamos pronto!' },
@@ -223,7 +227,12 @@ export function Seguimiento({ token, menu }) {
             <p>{t.texto}</p>
           </div>
         </div>
-        {['pendiente', 'preparando'].includes(p.estado) && (
+        {['pendiente', 'preparando'].includes(p.estado) && p.programado && (
+          <p class="ruta-eta">
+            <Clock size={16} /> {p.tipo === 'delivery' ? 'Llega cerca de las' : 'Listo a las'} <strong>{p.programado}</strong>
+          </p>
+        )}
+        {['pendiente', 'preparando'].includes(p.estado) && !p.programado && (
           <p class="ruta-eta">
             <Clock size={16} /> Listo aprox. a las <strong>{hora(estimado)}</strong>
             {adelante > 0 && (
@@ -313,16 +322,21 @@ export function Seguimiento({ token, menu }) {
             <span class="subtle small">{fechaHora(p.creado)}</span>
           </div>
           <ul class="resumen">
-            {p.items.map((it) => (
-              <li key={it.id}>
-                <span class="qty">{it.cantidad}×</span>
-                <span class="grow">
-                  {it.nombre}
-                  {it.acompanamiento && <small>Con {it.acompanamiento}</small>}
-                  {it.comentario && <small class="comment">“{it.comentario}”</small>}
-                </span>
-                <span class="num">{clp(it.total)}</span>
-              </li>
+            {porPersona(p.items).map((g) => (
+              <Fragment key={g.persona || 'todos'}>
+                {g.persona && <li class="resumen-persona">{g.persona}</li>}
+                {g.items.map((it) => (
+                  <li key={it.id}>
+                    <span class="qty">{it.cantidad}×</span>
+                    <span class="grow">
+                      {it.nombre}
+                      {it.acompanamiento && <small>Con {it.acompanamiento}</small>}
+                      {it.comentario && <small class="comment">“{it.comentario}”</small>}
+                    </span>
+                    <span class="num">{clp(it.total)}</span>
+                  </li>
+                ))}
+              </Fragment>
             ))}
           </ul>
           <div class="totales">

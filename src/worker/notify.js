@@ -58,8 +58,8 @@ export async function avisarLocal(env, pedido, subject) {
   if (!results.length) return { enviadas: 0, total: 0 };
   const lugar = pedido.tipo === 'mesa' ? `Mesa ${pedido.mesa}` : LUGAR[pedido.tipo];
   const datos = {
-    title: `Nuevo pedido #${pedido.id}`,
-    body: `${pedido.cliente_nombre} · ${lugar} · ${clp(pedido.total)}`,
+    title: `Nuevo pedido ${pedido.grupo_id ? 'grupal ' : ''}#${pedido.id}`,
+    body: `${pedido.cliente_nombre} · ${lugar}${pedido.programado ? ` · para las ${pedido.programado}` : ''} · ${clp(pedido.total)}`,
     url: '/admin/#/pedidos',
     tag: `nuevo-${pedido.id}`,
     admin: true,

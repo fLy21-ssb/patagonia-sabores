@@ -21,6 +21,7 @@ export function productoDTO(p) {
     conAcompanamiento: Boolean(p.con_acompanamiento),
     dias: p.dias,
     destacado: Boolean(p.destacado),
+    sugerido: Boolean(p.sugerido),
     activo: Boolean(p.activo),
     orden: p.orden,
   };
@@ -40,6 +41,7 @@ export function productoPublicoDTO(p) {
     conAcompanamiento: Boolean(p.con_acompanamiento),
     dias: p.dias,
     destacado: Boolean(p.destacado),
+    sugerido: Boolean(p.sugerido),
     agotado: p.stock !== null && p.stock <= 0,
     quedan: p.stock !== null && p.stock > 0 && p.stock <= 5 ? p.stock : null,
   };
@@ -54,6 +56,7 @@ export function itemDTO(i) {
     cantidad: i.cantidad,
     acompanamiento: i.acompanamiento,
     comentario: i.comentario,
+    persona: i.persona || '',
     total: i.total,
   };
 }
@@ -77,6 +80,8 @@ export function pedidoDTO(p, items = []) {
     motivoCancelacion: p.motivo_cancelacion,
     eliminado: Boolean(p.eliminado),
     fechaLocal: p.fecha_local,
+    programado: p.programado || null,
+    grupal: Boolean(p.grupo_id),
     creado: p.creado,
     actualizado: p.actualizado,
     tiempos: {

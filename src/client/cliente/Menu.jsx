@@ -21,13 +21,15 @@ import {
 import { clp, DIAS, linkWhatsapp, normalizar } from '../shared/format.js';
 import { navegar } from '../shared/hooks.js';
 import { useStore } from '../shared/store.js';
-import { IconoInstagram, Sheet, Stepper, Vacio, confirmar } from '../shared/ui.jsx';
+import { IconoInstagram, Sheet, Stepper, Vacio, confirmar, toast } from '../shared/ui.jsx';
 import { useInstalacion } from '../shared/pwa.js';
 import { Atardecer, Cargando, Cordillera, Destello, IconoCategoria, Postal, Rombo } from '../shared/simbolos.jsx';
+import { AvisoGrupo, PieCarroGrupo, TarjetaGrupo } from './Grupo.jsx';
 import {
   agregarAlCarrito,
   cambiarCantidad,
   carrito,
+  grupoActivo,
   instalarDescartado,
   mesaActual,
   misPedidos,
@@ -90,6 +92,7 @@ function MenuListo({ menu }) {
   const mesa = useStore(mesaActual);
   const pedidos = useStore(misPedidos);
   const descartado = useStore(instalarDescartado);
+  const enGrupo = useStore(grupoActivo);
   const instalacion = useInstalacion();
   const [productoAbierto, setProductoAbierto] = useState(null);
   const [carritoAbierto, setCarritoAbierto] = useState(false);
@@ -225,6 +228,7 @@ function MenuListo({ menu }) {
       </section>
 
       <div class="avisos">
+        <AvisoGrupo />
         <AvisoCuponGuardado />
         {mesa && (
           <div class="aviso-mesa">
@@ -364,6 +368,8 @@ function MenuListo({ menu }) {
         ))}
       </main>
 
+      {local.grupos && !enGrupo && !mesa && <TarjetaGrupo />}
+
       <TarjetaPromos vapidPublicKey={menu.vapidPublicKey} onAyudaIOS={() => setIosAyuda(true)} />
 
       <footer class="pie">
@@ -420,7 +426,7 @@ function MenuListo({ menu }) {
             <img src="/brand/oveja-cara.webp" alt="" width="46" height="28" />
             <span class="fab-n">{totalUnidades}</span>
           </span>
-          <span class="fab-texto">Ver mi pedido</span>
+          <span class="fab-texto">{enGrupo ? 'Ver lo mío' : 'Ver mi pedido'}</span>
           <span class="fab-total num">{clp(totalCarrito(lineas, productosPorId))}</span>
         </button>
       )}
@@ -435,7 +441,27 @@ function MenuListo({ menu }) {
         />
       )}
 
-      <CarritoSheet abierto={carritoAbierto} onCerrar={() => setCarritoAbierto(false)} lineas={lineas} productosPorId={productosPorId} estado={estado} />
+      <CarritoSheet
+        abierto={carritoAbierto}
+        onCerrar={() => setCarritoAbierto(false)}
+        lineas={lineas}
+        productosPorId={productosPorId}
+        estado={estado}
+        local={local}
+        disponibles={disponibles}
+        iconoDe={iconoDe}
+        modoGrupo={Boolean(enGrupo)}
+        onSugerido={(p) => {
+          if (p.conAcompanamiento && acompanamientos.length) {
+            setCarritoAbierto(false);
+            setProductoAbierto(p);
+            return;
+          }
+          agregarAlCarrito(p, { cantidad: 1 });
+          navigator.vibrate?.(12);
+          toast(`Agregamos ${p.nombre}`, 'ok');
+        }}
+      />
 
       <Sheet abierto={iosAyuda} onCerrar={() => setIosAyuda(false)} titulo="Instalar en iPhone">
         <ol class="pasos-ios">
@@ -573,13 +599,52 @@ function ProductoSheet({ producto, icono, acompanamientos, onCerrar }) {
   );
 }
 
-function CarritoSheet({ abierto, onCerrar, lineas, productosPorId, estado }) {
+/** "¿Le sumas algo?": productos marcados como sugeridos en el panel que aún no están en el carro. */
+function Sugerencias({ productos, iconoDe, onAgregar }) {
+  if (!productos.length) return null;
+  return (
+    <section class="sugerencias" aria-label="Sugerencias para tu pedido">
+      <h3 class="sug-titulo">
+        <Rombo color="sol" chico>
+          <Destello size={13} />
+        </Rombo>
+        ¿Le sumas algo?
+      </h3>
+      <div class="sug-lista">
+        {productos.map((p) => (
+          <button key={p.id} class="sug-item" onClick={() => onAgregar(p)} aria-label={`Agregar ${p.nombre}`}>
+            <span class="sug-foto">{p.imagen ? <img src={p.imagen} alt="" loading="lazy" /> : <Postal clave={iconoDe(p)} />}</span>
+            <span class="sug-nombre">{p.nombre}</span>
+            <span class="sug-pie">
+              <span class="num">{clp(p.precio)}</span>
+              <span class="sug-mas" aria-hidden="true">
+                <Plus size={15} strokeWidth={3.2} />
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CarritoSheet({ abierto, onCerrar, lineas, productosPorId, estado, local, disponibles, iconoDe, modoGrupo, onSugerido }) {
   const total = totalCarrito(lineas, productosPorId);
+  const programable = local.programar && (estado.programables || []).length > 0;
+  const puedeSeguir = estado.abierto || programable;
+  const sugeridos = useMemo(() => {
+    const enCarro = new Set(lineas.map((l) => l.productoId));
+    const categoriasEnCarro = new Set(lineas.map((l) => productosPorId.get(l.productoId)?.categoriaId));
+    return disponibles
+      .filter((p) => p.sugerido && !p.agotado && !enCarro.has(p.id))
+      .sort((a, b) => Number(categoriasEnCarro.has(a.categoriaId)) - Number(categoriasEnCarro.has(b.categoriaId)))
+      .slice(0, 3);
+  }, [disponibles, lineas, productosPorId]);
   return (
     <Sheet
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo="Tu pedido"
+      titulo={modoGrupo ? 'Lo tuyo' : 'Tu pedido'}
       pie={
         lineas.length > 0 && (
           <div class="stack">
@@ -587,17 +652,28 @@ function CarritoSheet({ abierto, onCerrar, lineas, productosPorId, estado }) {
               <span class="label">Subtotal</span>
               <strong class="display num">{clp(total)}</strong>
             </div>
-            {!estado.abierto && <p class="notice bad">{estado.mensaje}</p>}
-            <button
-              class="btn btn-primary btn-lg btn-block"
-              disabled={!estado.abierto}
-              onClick={() => {
-                onCerrar();
-                navegar('/pedir');
-              }}
-            >
-              Continuar <ArrowRight size={20} />
-            </button>
+            {modoGrupo ? (
+              <PieCarroGrupo lineas={lineas} onListo={onCerrar} />
+            ) : (
+              <>
+                {!estado.abierto &&
+                  (programable ? (
+                    <p class="notice">{estado.mensaje}. Puedes dejarlo programado para más tarde hoy.</p>
+                  ) : (
+                    <p class="notice bad">{estado.mensaje}</p>
+                  ))}
+                <button
+                  class="btn btn-primary btn-lg btn-block"
+                  disabled={!puedeSeguir}
+                  onClick={() => {
+                    onCerrar();
+                    navegar('/pedir');
+                  }}
+                >
+                  Continuar <ArrowRight size={20} />
+                </button>
+              </>
+            )}
           </div>
         )
       }
@@ -619,6 +695,7 @@ function CarritoSheet({ abierto, onCerrar, lineas, productosPorId, estado }) {
               </li>
             ))}
           </ul>
+          <Sugerencias productos={sugeridos} iconoDe={iconoDe} onAgregar={onSugerido} />
           <button
             class="btn btn-ghost btn-sm vaciar"
             onClick={async () => {
