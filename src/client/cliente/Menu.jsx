@@ -194,15 +194,15 @@ function MenuListo({ menu }) {
         }
       />
 
-      <section class="boleto" aria-label="Estado del local">
-        {local.eslogan && <p class="boleto-eslogan">{local.eslogan}</p>}
-        <div class="boleto-fila">
-          <span class={`estado-local ${estado.abierto ? 'abierto' : 'cerrado'}`}>
+      <section class="estado-portada" aria-label="Estado del local">
+        <div class={`cinta-estado${estado.abierto ? '' : ' cerrado'}`}>
+          <p class={`cinta-texto${estado.mensaje.length > 34 ? ' larga' : ''}`}>
             <span class={`dot${estado.abierto ? ' pulse' : ''}`} />
             {estado.mensaje}
-          </span>
+          </p>
         </div>
-        <div class="boleto-datos">
+        {local.eslogan && <p class="local-eslogan">{local.eslogan}</p>}
+        <div class="local-datos">
           <span>
             <Clock size={16} /> ~{local.tiempoPreparacion} min
           </span>
