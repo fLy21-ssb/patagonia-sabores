@@ -515,6 +515,11 @@ function ProductoSheet({ producto, icono, acompanamientos, onCerrar }) {
     >
       <div class="ps-media">
         {producto.imagen ? <img src={producto.imagen} alt="" /> : <Postal clave={icono} grande />}
+        {producto.imagen && producto.imagenCredito && (
+          <a class="ps-credito" href={producto.imagenFuente || undefined} target="_blank" rel="noopener noreferrer">
+            {producto.imagenCredito}
+          </a>
+        )}
         <button class="icon-btn close-float" onClick={onCerrar} aria-label="Cerrar">
           <X size={20} />
         </button>

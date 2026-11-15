@@ -1,0 +1,21 @@
+[
+  { "producto": "Cazuela de vacuno", "archivo": "File:Cazuela de Vacuno en plato de greda.jpg", "autor": "Conyann2009" },
+  { "producto": "Pastel de choclo", "archivo": "File:Pastel de choclo.jpg", "autor": "Paloma Baytelman" },
+  { "producto": "Charquicán con huevo", "archivo": "File:Charquican.jpg", "autor": "Pablo Lobos Ovalle" },
+  { "producto": "Porotos granados", "archivo": "File:Porotos granados and Chilean salad.jpg", "autor": "Pachanka" },
+  { "producto": "Merluza frita", "archivo": "File:Merluza frita con papas fritas, mayonesa picante y Pepsi (Argentina).jpg", "autor": "Horacio Cambeiro" },
+  { "producto": "Lomo a lo pobre", "archivo": "File:Lomo a lo pobre.JPG", "autor": "Jani Martínez" },
+  { "producto": "Pollo asado", "archivo": "File:Entire roasted chicken.jpg", "autor": "E4024" },
+  { "producto": "Milanesa de pollo", "archivo": "File:Chicken milanesa of Argentina.jpg", "autor": "Federico L." },
+  { "producto": "Costillar de cerdo", "archivo": "File:El fiable costillar de cerdo... @ Señor Gaucho, SV.jpg", "autor": "robertorodriguex", "recorte": { "x": 0.01, "y": 0.02, "w": 0.98, "h": 0.94 } },
+  { "producto": "Empanada de pino", "archivo": "File:Empanada de pino.jpg", "autor": "J B" },
+  { "producto": "Empanada de queso", "archivo": "File:Empanadas de queso (Argentinian or Chilean cuisine).jpg", "autor": "E4024" },
+  { "producto": "Sopaipillas (4 un.)", "archivo": "File:Sopaipillas en Curarrehue.JPG", "autor": "Warko", "recorte": { "x": 0.4, "y": 0.12, "w": 0.6, "h": 0.8 } },
+  { "producto": "Ensalada chilena", "archivo": "File:Ensalada Chilena.jpg", "autor": "Diegostraight" },
+  { "producto": "Ensalada surtida", "archivo": "File:Avocado salad.jpg", "autor": "Nowforever" },
+  { "producto": "Bebida en lata", "archivo": "File:Cans of soda in a refrigerator (14496480669).jpg", "autor": "FutUndBeidl" },
+  { "producto": "Jugo natural", "archivo": "File:Glass of Mango Juice.jpg", "autor": "Lisa Pinehill" },
+  { "producto": "Mote con huesillo", "archivo": "File:Mote con huesillo.jpg", "autor": "Nellu Mazilu", "recorte": { "x": 0.35, "y": 0, "w": 0.65, "h": 1 } },
+  { "producto": "Leche asada", "archivo": "File:La leche asada.jpg", "autor": "Maythiare330" },
+  { "producto": "Kuchen de murta", "archivo": "File:Variedades de kuchenes del sur de chile.jpg", "autor": "Alexmrz" }
+]

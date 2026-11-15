@@ -357,12 +357,15 @@ async function editarProducto({ request, env, ctx, params }) {
   const id = entero(params.id, { min: 1, campo: 'el producto' });
   const anterior = await productoPorId(env, id);
   const d = leerProducto(await readJson(request));
+  // El crédito de la foto se mantiene solo si la foto no cambió (SQLite evalúa los CASE con los valores anteriores).
   const fila = await env.DB.prepare(
     `UPDATE productos SET nombre = ?, descripcion = ?, precio = ?, categoria_id = ?, stock = ?, imagen = ?,
+       imagen_credito = CASE WHEN imagen IS ? THEN imagen_credito ELSE '' END,
+       imagen_fuente = CASE WHEN imagen IS ? THEN imagen_fuente ELSE '' END,
        con_acompanamiento = ?, dias = ?, destacado = ?, activo = ?, actualizado = ?
      WHERE id = ? RETURNING *`,
   )
-    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.activo, ahoraIso(), id)
+    .bind(d.nombre, d.descripcion, d.precio, d.categoria_id, d.stock, d.imagen, d.imagen, d.imagen, d.con_acompanamiento, d.dias, d.destacado, d.activo, ahoraIso(), id)
     .first();
   if (anterior.imagen && anterior.imagen !== d.imagen) ctx.waitUntil(env.IMAGENES.delete(anterior.imagen));
   return json({ producto: productoDTO(fila) });

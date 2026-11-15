@@ -2,6 +2,10 @@
 
 export const imagenUrl = (clave) => (clave ? `/img/${clave}` : null);
 
+/** Crédito de la foto (solo fotos de referencia con licencia libre; las propias no llevan). */
+const creditoFoto = (p) => (p.imagen && p.imagen_credito ? p.imagen_credito : '');
+const fuenteFoto = (p) => (p.imagen && /^https:\/\//.test(p.imagen_fuente || '') ? p.imagen_fuente : '');
+
 export function productoDTO(p) {
   return {
     id: p.id,
@@ -12,6 +16,8 @@ export function productoDTO(p) {
     stock: p.stock,
     imagen: imagenUrl(p.imagen),
     imagenClave: p.imagen,
+    imagenCredito: creditoFoto(p),
+    imagenFuente: fuenteFoto(p),
     conAcompanamiento: Boolean(p.con_acompanamiento),
     dias: p.dias,
     destacado: Boolean(p.destacado),
@@ -29,6 +35,8 @@ export function productoPublicoDTO(p) {
     precio: p.precio,
     categoriaId: p.categoria_id,
     imagen: imagenUrl(p.imagen),
+    imagenCredito: creditoFoto(p),
+    imagenFuente: fuenteFoto(p),
     conAcompanamiento: Boolean(p.con_acompanamiento),
     dias: p.dias,
     destacado: Boolean(p.destacado),

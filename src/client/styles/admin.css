@@ -1021,6 +1021,13 @@ code {
   top: 10px;
   right: 10px;
 }
+.foto-credito {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
 .foto-boton {
   position: relative;
   display: inline-flex;

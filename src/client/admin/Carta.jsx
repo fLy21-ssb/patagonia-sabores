@@ -359,6 +359,11 @@ function FormularioProducto({ producto, categorias, onCerrar, onGuardado, onElim
               <small>Se optimiza sola para que cargue rápido</small>
             </div>
           )}
+          {f.imagen && producto.imagenCredito && f.imagenClave === producto.imagenClave && (
+            <p class="foto-credito">
+              {producto.imagenCredito}. Cámbiala por una foto de tu plato cuando la tengas.
+            </p>
+          )}
           <label class="foto-boton">
             <input type="file" accept="image/*" onChange={(e) => subir(e.currentTarget.files[0])} />
             {subiendo ? (
